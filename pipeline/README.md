@@ -11,7 +11,9 @@ It is fully containerized with **Docker**, making it completely plug-and-play fo
 - **Robust NIfTI Validation**: Before scoring, validates expected filenames (`Synthetic_P#_Visit#` and `Clinical_P#_Visit#`). Safely handles and rejects `.nii.gz` compression, all-NaN arrays, duplicate patients, or out-of-range IDs gracefully without crashing the scoring scripts.
 - **Windows Compat Fixes**: Injects sorted file lists natively (resolves non-deterministic `os.walk` path sorting).
 - **Graceful Error Handling**: Overrides Matplotlib dynamically to headless `Agg` mode. Translates `NaN` or `Inf` tabular outputs into standard `null` JSON scalars for cross-language compatibility.
-- **Artifact Generation**: Outputs a structured `results.json` and cleanly formats a PDF `Evaluation_Report.pdf` displaying validation status and silver/gold scores.
+- **Artifact Generation**: Outputs a structured `results.json`, a PDF `Evaluation_Report.pdf`, and a persistent `pipeline.log` file — all deposited into the output directory automatically.
+- **Persistent Logging**: Every pipeline event (timestamps, validation errors, scores, file paths) is simultaneously written to `stdout` AND saved to `pipeline.log` in the output directory for audit trails.
+- **Leaderboard Generation**: `aggregate_leaderboard.py` scans a directory of team output folders, parses each `results.json`, and generates a ranked CSV sorted by OSIPI Silver Score.
 
 ---
 
@@ -74,9 +76,38 @@ python run_pipeline.py \
 
 Running the pipeline deposits the following artifacts directly into the defined `--output_dir` (`/app/output` in Docker):
 
-- `Evaluation_Report.pdf` - Visual summary showing the Validation badge (PASS/FAIL) and the OSIPI Silver metrics.
-- `results.json` - Programmatically parseable file containing `validation_passed` flags, the raw silver/gold/accuracy numbers, and `per_patient_ktrans` objects.
-- `OSIPI_score_tabular.txt` & `TMROI_Ktrans.txt` - Raw artifact dumps from `challengeScoring.py`.
+| File | Description |
+|------|-------------|
+| `results.json` | Machine-readable scores: `validation_passed`, `accuracy_score`, `osipi_score_silver/gold`, and full `per_patient_ktrans` map |
+| `Evaluation_Report.pdf` | Visual summary with Validation badge (PASS/FAIL) and OSIPI Silver metrics |
+| `pipeline.log` | **Persistent timestamped log** of every pipeline event — written simultaneously to stdout and file |
+| `OSIPI_score_tabular.txt` | Raw tabular output from `challengeScoring.py` |
+| `TMROI_Ktrans.txt` | Per-patient Ktrans table from `challengeScoring.py` |
+
+---
+
+## 🏆 Leaderboard Generator
+
+After evaluating multiple teams, generate a **ranked CSV leaderboard** sorted by OSIPI Silver Score:
+
+```bash
+# Local usage
+python aggregate_leaderboard.py \
+    --results_dir ./all_team_outputs \
+    --output_csv  ./leaderboard.csv
+```
+
+Expected directory layout for `--results_dir`:
+```
+all_team_outputs/
+    TeamA/results.json
+    TeamB/results.json
+    TeamC/results.json
+```
+
+**Output CSV columns:** `Rank, Team, Validation, Silver_Score_%, Gold_Score_%, Accuracy, Repeatability, Reproducibility, Validation_Errors`
+
+Teams with missing or malformed `results.json` are gracefully skipped with a warning. Teams with no Silver Score (validation failed) rank last.
 
 ---
 

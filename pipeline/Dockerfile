@@ -53,10 +53,11 @@ COPY pipeline/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # -- Pipeline scripts ----------------------------------------------------------
-COPY pipeline/validator.py      /app/validator.py
-COPY pipeline/scorer_wrapper.py /app/scorer_wrapper.py
-COPY pipeline/report_gen.py     /app/report_gen.py
-COPY pipeline/run_pipeline.py   /app/run_pipeline.py
+COPY pipeline/validator.py            /app/validator.py
+COPY pipeline/scorer_wrapper.py       /app/scorer_wrapper.py
+COPY pipeline/report_gen.py           /app/report_gen.py
+COPY pipeline/run_pipeline.py         /app/run_pipeline.py
+COPY pipeline/aggregate_leaderboard.py /app/aggregate_leaderboard.py
 
 # -- Scoring script & reference data (baked into image) ------------------------
 # challengeScoring.py  -->  /app/challengeScoring.py

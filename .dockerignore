@@ -46,9 +46,15 @@ Thumbs.db
 *.txt
 !pipeline/requirements.txt
 
-# Bulk test script (not needed inside container)
+# Test/sanity output dirs (generated during local Docker testing)
+pipeline/sanity_out_*
+pipeline/leaderboard_test
+
+# Test scripts (not needed inside container — run externally against the image)
 pipeline/bulk_test.py
+pipeline/docker_sanity_test.py
 pipeline/_diag_single.py
+pipeline/_verify_image.py
 
 # Windows artefacts
 desktop.ini

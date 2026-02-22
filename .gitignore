@@ -34,6 +34,8 @@ pipeline/docker_edge_*/
 pipeline/docker_missing_sub/
 pipeline/docker_bad_names/
 pipeline/docker_special_*/
+pipeline/sanity_out_*/
+pipeline/leaderboard_test/
 
 # Ad-hoc / Diagnostic scripts
 pipeline/_verify_image.py

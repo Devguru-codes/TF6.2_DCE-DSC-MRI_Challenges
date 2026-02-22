@@ -33,6 +33,7 @@ Usage (local testing — override paths):
 
 import argparse
 import json
+import logging
 import os
 import sys
 import shutil
@@ -52,6 +53,35 @@ import scorer_wrapper
 import report_gen
 
 
+# -------------------------------------------------------------------------------
+# Logging
+# -------------------------------------------------------------------------------
+
+def setup_logging(output_dir: str) -> logging.Logger:
+    """Configure dual-handler logging: console + pipeline.log in output_dir."""
+    log_path = os.path.join(output_dir, "pipeline.log")
+    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s",
+                            datefmt="%Y-%m-%d %H:%M:%S")
+
+    logger = logging.getLogger("osipi_pipeline")
+    logger.setLevel(logging.DEBUG)
+    logger.handlers.clear()  # avoid duplicate handlers if re-used
+
+    # Console handler (INFO+)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(fmt)
+    logger.addHandler(ch)
+
+    # File handler (DEBUG+) — captures everything including tracebacks
+    fh = logging.FileHandler(log_path, encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+
+    return logger
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
@@ -59,18 +89,18 @@ import report_gen
 SEPARATOR = "-" * 60
 
 
-def header(title: str):
-    print(f"\n{SEPARATOR}")
-    print(f"  {title}")
-    print(SEPARATOR)
+def header(log: logging.Logger, title: str):
+    log.info(SEPARATOR)
+    log.info(f"  {title}")
+    log.info(SEPARATOR)
 
 
-def success(msg: str):
-    print(f"  [OK] {msg}")
+def success(log: logging.Logger, msg: str):
+    log.info(f"[OK] {msg}")
 
 
-def fail(msg: str):
-    print(f"  [ERR] {msg}", file=sys.stderr)
+def fail(log: logging.Logger, msg: str):
+    log.error(f"[ERR] {msg}")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -120,48 +150,50 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    print("\n" + "=" * 60)
-    print("  OSIPI DCE-MRI Challenge -- Automated Evaluation Pipeline")
-    print("=" * 60)
-    print(f"  Submission dir  : {args.submission_dir}")
-    print(f"  Ground truth dir: {args.ground_truth_dir}")
-    print(f"  Output dir      : {args.output_dir}")
+    # Set up logger — MUST happen after output_dir is created
+    log = setup_logging(args.output_dir)
+
+    log.info("=" * 60)
+    log.info("  OSIPI DCE-MRI Challenge -- Automated Evaluation Pipeline")
+    log.info("=" * 60)
+    log.info(f"  Submission dir  : {args.submission_dir}")
+    log.info(f"  Ground truth dir: {args.ground_truth_dir}")
+    log.info(f"  Output dir      : {args.output_dir}")
+    log.info(f"  Log file        : {os.path.join(args.output_dir, 'pipeline.log')}")
 
     validation_passed = False
     validation_errors: List[str] = []
 
     # ── STEP 1: Validate ──────────────────────────────────────────────────────
-    header("STEP 1 / 3 — File Validation")
+    header(log, "STEP 1 / 3 — File Validation")
     if args.skip_validation:
-        print("  [WARN] Validation skipped (--skip_validation flag set).")
+        log.warning("Validation skipped (--skip_validation flag set).")
         validation_passed = True
     else:
         is_valid, errors = validator.validate_submission(args.submission_dir)
         if is_valid:
-            success("All submission files are valid.")
+            success(log, "All submission files are valid.")
             validation_passed = True
         else:
-            fail(f"{len(errors)} validation error(s) found:")
+            fail(log, f"{len(errors)} validation error(s) found:")
             for err in errors:
-                print(f"     - {err}", file=sys.stderr)
+                log.error(f"     - {err}")
             validation_errors = errors
             # We do NOT abort here — we continue to scoring and include the
             # FAIL status in the PDF report. This gives the submitter a full
             # report even when files are missing.
-            print("  [WARN] Continuing pipeline to generate partial report...", file=sys.stderr)
+            log.warning("Continuing pipeline to generate partial report...")
 
     # ── STEP 2: Score ─────────────────────────────────────────────────────────
-    header("STEP 2 / 3 — Scoring")
+    header(log, "STEP 2 / 3 — Scoring")
 
     # If masks_dir is provided, patch scorer_wrapper to find it
     if args.masks_dir:
-        # Inject a tiny shim so scorer_wrapper._link_or_copy resolves Masks correctly
         os.environ["OSIPI_MASKS_DIR"] = os.path.abspath(args.masks_dir)
 
     # Resolve scoring script
     scoring_script = args.scoring_script
     if scoring_script is None:
-        # Auto-detect: check standard Docker path first, then local repo path
         candidates = [
             "/app/challengeScoring.py",
             os.path.join(os.path.dirname(__file__), "..", "Scoring", "challengeScoring.py"),
@@ -172,10 +204,10 @@ def main():
                 scoring_script = os.path.normpath(candidate)
                 break
         if scoring_script is None:
-            fail("Cannot locate challengeScoring.py. Use --scoring_script to specify its location.")
+            fail(log, "Cannot locate challengeScoring.py. Use --scoring_script to specify its location.")
             sys.exit(1)
 
-    print(f"  Using scoring script: {scoring_script}")
+    log.info(f"Using scoring script: {scoring_script}")
 
     try:
         results = scorer_wrapper.run_scoring(
@@ -193,43 +225,43 @@ def main():
         with open(results_json_path, "w") as f:
             json.dump(results, f, indent=2, default=str)
 
-        success(f"Scoring complete. Results: {results_json_path}")
-        print()
-        print(f"    Accuracy Score        : {results.get('accuracy_score')}")
-        print(f"    Repeatability Score   : {results.get('repeatability_score')}")
-        print(f"    Reproducibility Score : {results.get('reproducibility_score')}")
-        print(f"    OSIPI Silver Score    : {results.get('osipi_score_silver')}%")
-        print(f"    OSIPI Gold Score      : {results.get('osipi_score_gold')}%")
+        success(log, f"Scoring complete -> {results_json_path}")
+        log.info(f"    Accuracy Score        : {results.get('accuracy_score')}")
+        log.info(f"    Repeatability Score   : {results.get('repeatability_score')}")
+        log.info(f"    Reproducibility Score : {results.get('reproducibility_score')}")
+        log.info(f"    OSIPI Silver Score    : {results.get('osipi_score_silver')}%")
+        log.info(f"    OSIPI Gold Score      : {results.get('osipi_score_gold')}%")
 
     except Exception as e:
-        fail(f"Scoring failed: {e}")
+        fail(log, f"Scoring failed: {e}")
         import traceback
-        traceback.print_exc()
+        log.debug(traceback.format_exc())
         sys.exit(1)
 
     # ── STEP 3: Generate PDF Report ───────────────────────────────────────────
-    header("STEP 3 / 3 — Report Generation")
+    header(log, "STEP 3 / 3 — Report Generation")
     try:
         pdf_path = report_gen.generate_report(
             results_json_path=results_json_path,
             output_dir=args.output_dir,
         )
-        success(f"Report generated: {pdf_path}")
+        success(log, f"Report generated: {pdf_path}")
     except Exception as e:
-        fail(f"Report generation failed: {e}")
+        fail(log, f"Report generation failed: {e}")
         import traceback
-        traceback.print_exc()
+        log.debug(traceback.format_exc())
         sys.exit(1)
 
     # ── Summary ───────────────────────────────────────────────────────────────
-    print("\n" + "=" * 60)
-    print("  Pipeline Complete")
-    print("=" * 60)
-    print(f"  [JSON] results.json        -> {results_json_path}")
-    print(f"  [PDF] Evaluation_Report    -> {pdf_path}")
-    val_status = "[PASS]" if validation_passed else "[FAIL]"
-    print(f"  [VAL] Validation Status    -> {val_status}")
-    print("=" * 60 + "\n")
+    log.info("=" * 60)
+    log.info("  Pipeline Complete")
+    log.info("=" * 60)
+    log.info(f"  [JSON] results.json        -> {results_json_path}")
+    log.info(f"  [PDF] Evaluation_Report    -> {pdf_path}")
+    log.info(f"  [LOG] pipeline.log         -> {os.path.join(args.output_dir, 'pipeline.log')}")
+    val_status = "PASS" if validation_passed else "FAIL"
+    log.info(f"  [VAL] Validation Status    -> {val_status}")
+    log.info("=" * 60)
 
     sys.exit(0 if validation_passed else 2)  # exit 2 = scoring done but validation failed
 
