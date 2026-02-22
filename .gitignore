@@ -1,0 +1,43 @@
+# Prerequisites
+*.d
+
+# DRO Production data -- already exists in upstream repo, do not commit
+DRO_Production/
+
+# Compiled Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Mac / Windows files
+.DS_Store
+._*
+Thumbs.db
+__MACOSX/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# IDEs / Editor files
+.vscode/
+.idea/
+*.code-workspace
+
+# Pipeline Outputs & Test Data
+pipeline/test_output/
+pipeline/test_output2/
+pipeline/docker_output/
+pipeline/docker_edge_*/
+pipeline/docker_missing_sub/
+pipeline/docker_bad_names/
+pipeline/docker_special_*/
+
+# Ad-hoc / Diagnostic scripts
+pipeline/_verify_image.py
+pipeline/_diag_*.py
+
+# Jupyter Notebook outputs / checkpoints
+.ipynb_checkpoints/

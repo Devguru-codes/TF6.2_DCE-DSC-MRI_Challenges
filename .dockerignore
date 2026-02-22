@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .dockerignore  (build context = repo root)
+# Only pipeline/ scripts + Scoring/ reference data need to be in the image.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python caches / envs
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+pipeline/venv
+pipeline/.venv
+**/*.egg-info
+**/.eggs
+
+# Test / debug outputs (can be large)
+pipeline/test_output
+pipeline/test_output2
+pipeline/docker_output
+
+# Submission entry directories (will be volume-mounted at runtime)
+Scoring/entryDirectories
+
+# Scoring outputs (generated at runtime, not needed at build)
+Scoring/scoringOutputs
+
+# Development / IDE / editor
+.idea
+.vscode
+*.code-workspace
+.gemini
+**/*.DS_Store
+Thumbs.db
+
+# Jupyter notebooks (not needed in container)
+**/*.ipynb
+**/.ipynb_checkpoints
+
+# Documentation and other non-essential files
+*.md
+*.txt
+!pipeline/requirements.txt
+
+# Bulk test script (not needed inside container)
+pipeline/bulk_test.py
+pipeline/_diag_single.py
+
+# Windows artefacts
+desktop.ini
